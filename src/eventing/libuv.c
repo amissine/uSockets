@@ -97,25 +97,30 @@ LIBUS_SOCKET_DESCRIPTOR us_poll_fd(struct us_poll *p) {
     return p->fd;
 }
 
-struct us_loop *us_create_loop(int default_hint, void (*wakeup_cb)(struct us_loop *loop), void (*pre_cb)(struct us_loop *loop), void (*post_cb)(struct us_loop *loop), unsigned int ext_size) {
-    struct us_loop *loop = (struct us_loop *) malloc(sizeof(struct us_loop) + ext_size);
+struct us_loop *us_create_loop (int default_hint, 
+    void (*wakeup_cb)(struct us_loop *loop), 
+    void (*pre_cb)(struct us_loop *loop), 
+    void (*post_cb)(struct us_loop *loop), unsigned int ext_size) {
+    
+  struct us_loop *loop = 
+    (struct us_loop *) malloc(sizeof(struct us_loop) + ext_size);
 
-    loop->uv_loop = default_hint ? uv_default_loop() : uv_loop_new();
+  loop->uv_loop = default_hint ? uv_default_loop() : uv_loop_new();
+    
+  loop->uv_pre = malloc(sizeof(uv_prepare_t));
+  uv_prepare_init(loop->uv_loop, loop->uv_pre);
+  uv_prepare_start(loop->uv_pre, prepare_cb);
+  uv_unref((uv_handle_t *) loop->uv_pre);
+  loop->uv_pre->data = loop;
 
-    loop->uv_pre = malloc(sizeof(uv_prepare_t));
-    uv_prepare_init(loop->uv_loop, loop->uv_pre);
-    uv_prepare_start(loop->uv_pre, prepare_cb);
-    uv_unref((uv_handle_t *) loop->uv_pre);
-    loop->uv_pre->data = loop;
+  loop->uv_check = malloc(sizeof(uv_check_t));
+  uv_check_init(loop->uv_loop, loop->uv_check);
+  uv_unref((uv_handle_t *) loop->uv_check);
+  uv_check_start(loop->uv_check, check_cb);
+  loop->uv_check->data = loop;
 
-    loop->uv_check = malloc(sizeof(uv_check_t));
-    uv_check_init(loop->uv_loop, loop->uv_check);
-    uv_unref((uv_handle_t *) loop->uv_check);
-    uv_check_start(loop->uv_check, check_cb);
-    loop->uv_check->data = loop;
-
-    us_internal_loop_data_init(loop, wakeup_cb, pre_cb, post_cb);
-    return loop;
+  us_internal_loop_data_init(loop, wakeup_cb, pre_cb, post_cb);
+  return loop;
 }
 
 // based on if this was default loop or not
@@ -212,11 +217,14 @@ struct us_loop *us_timer_loop(struct us_timer *t) {
 }
 
 // async (internal only)
-struct us_internal_async *us_internal_create_async(struct us_loop *loop, int fallthrough, unsigned int ext_size) {
-    struct us_internal_callback *cb = malloc(sizeof(struct us_internal_callback) + sizeof(uv_async_t) + ext_size);
+struct us_internal_async *us_internal_create_async (struct us_loop *loop, 
+    int fallthrough, unsigned int ext_size) {
+    
+  struct us_internal_callback *cb = 
+    malloc(sizeof(struct us_internal_callback) + sizeof(uv_async_t) + ext_size);
 
-    cb->loop = loop;
-    return (struct us_internal_async *) cb;
+  cb->loop = loop;
+  return (struct us_internal_async *) cb;
 }
 
 void us_internal_async_close(struct us_internal_async *a) {
