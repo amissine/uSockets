@@ -1,4 +1,4 @@
-## µSockets - miniscule networking & eventing
+## µSockets - minuscule networking & eventing
 
 This is a cross-platform async networking and eventing foundation library written in standard C. It is the heart and soul of [µWebSockets](https://github.com/uNetworking/uWebSockets) and outperforms (esp. in memory footprint) just about everything similar out there (libuv, ASIO, etc.).
 
