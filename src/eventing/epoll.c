@@ -20,14 +20,17 @@ struct us_loop *us_create_loop (int default_hint,
   return loop;
 }
 
-void us_loop_free(struct us_loop *loop) {
-    us_internal_loop_data_free(loop);
-    close(loop->epfd);
-    free(loop);
+void us_loop_free (struct us_loop *loop) {
+  us_internal_loop_data_free(loop);
+  close(loop->epfd);
+  free(loop);
 }
 
-void us_loop_run(struct us_loop *loop) {
-    us_timer_set(loop->data.sweep_timer, (void (*)(struct us_timer *)) sweep_timer_cb, LIBUS_TIMEOUT_GRANULARITY * 1000, LIBUS_TIMEOUT_GRANULARITY * 1000);
+void us_loop_run (struct us_loop *loop) {
+    
+  us_timer_set(loop->data.sweep_timer, 
+      (void (*)(struct us_timer *)) sweep_timer_cb, 
+      LIBUS_TIMEOUT_GRANULARITY * 1000, LIBUS_TIMEOUT_GRANULARITY * 1000);
 
     while (loop->num_polls) {
         loop->data.pre_cb(loop);

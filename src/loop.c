@@ -42,62 +42,45 @@ void us_wakeup_loop(struct us_loop *loop) {
     us_internal_async_wakeup(loop->data.wakeup_async);
 }
 
-void us_internal_loop_link(struct us_loop *loop, struct us_socket_context *context) {
-    context->next = loop->data.head;
-    context->prev = 0;
-    if (loop->data.head) {
-        loop->data.head->prev = context;
-    }
-    loop->data.head = context;
+void us_internal_loop_link (struct us_loop *loop, 
+    struct us_socket_context *context) {
+  context->next = loop->data.head;
+  context->prev = 0;
+  if (loop->data.head) {
+    loop->data.head->prev = context;
+  }
+  loop->data.head = context;
 }
 
-void us_internal_timer_sweep(struct us_loop *loop) {
+void us_internal_timer_sweep (struct us_loop *loop) {
+  if (loop->data.iterator != 0) { printf("TIMER SWEEP RECURSION!\n"); exit(-2); }
 
-    if (loop->data.iterator != 0) {
-        printf("TIMER SWEEP RECURSION!\n");
-        exit(-2);
-    }
-
-    // we need loop->socket_iterator
-    // and loop->context_iterator
+    // we need loop->socket_iterator and loop->context_iterator
     // then unlink/link functions for both
     // also make sure to check for recursion here! timer_sweep should never run recursively!
+  struct us_loop_data *loop_data = &loop->data;
+  printf("sweeping timers now\n");
+  for (loop_data->iterator = loop_data->head; loop_data->iterator; 
+      loop_data->iterator = loop_data->iterator->next) {
+    struct us_socket_context *context = loop_data->iterator;
+    //printf("Sweeping context: %ld\n", context);
+    for (context->iterator = context->head; context->iterator; ) {
+      struct us_socket *s = context->iterator;
 
-    struct us_loop_data *loop_data = &loop->data;
+      // this shouldn't count down if already at 0!
+      if (s->timeout && --(s->timeout) == 0) {
 
-    printf("sweeping timers now\n");
-    for (loop_data->iterator = loop_data->head; loop_data->iterator; loop_data->iterator = loop_data->iterator->next) {
+        // if we adopt in the middle here we are fucked and thus it crashes
+        context->on_socket_timeout(s);
 
-        struct us_socket_context *context = loop_data->iterator;
-
-        //printf("Sweeping context: %ld\n", context);
-
-        for (context->iterator = context->head; context->iterator; ) {
-
-            struct us_socket *s = context->iterator;
-
-            // this shouldn't count down if already at 0!
-            if (s->timeout && --(s->timeout) == 0) {
-
-                // if we adopt in the middle here we are fucked and thus it crashes
-                context->on_socket_timeout(s);
-
-                // did they somehow update the iterator? (they unlinked, etc?)
-                if (s == context->iterator) {
-                    context->iterator = s->next;
-                }
-            } else {
-                context->iterator = s->next;
-            }
-
-
-        }
+        // did they somehow update the iterator? (they unlinked, etc?)
+        if (s == context->iterator) context->iterator = s->next;
+            
+      } 
+      else context->iterator = s->next;
     }
-
-    if (loop_data->iterator) {
-        printf("WTF!!!\n");
-        exit(-2);
-    }
+  }
+  if (loop_data->iterator) { printf("WTF!!!\n"); exit(-2); }
 }
 
 // this one also works with the linked list
@@ -114,8 +97,8 @@ void us_internal_free_closed_sockets(struct us_loop *loop) {
     }
 }
 
-void sweep_timer_cb(struct us_internal_callback *cb) {
-    us_internal_timer_sweep(cb->loop);
+void sweep_timer_cb (struct us_internal_callback *cb) {
+  us_internal_timer_sweep(cb->loop);
 }
 
 void us_internal_dispatch_ready_poll(struct us_poll *p, int error, int events) {

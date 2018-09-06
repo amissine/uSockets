@@ -130,65 +130,67 @@ static inline int bsd_would_block() {
 
 // return LIBUS_SOCKET_ERROR or the fd that represents listen socket
 // listen both on ipv6 and ipv4
-static inline LIBUS_SOCKET_DESCRIPTOR bsd_create_listen_socket(const char *host, int port, int options) {
-    struct addrinfo hints, *result;
-    memset(&hints, 0, sizeof(struct addrinfo));
+static inline LIBUS_SOCKET_DESCRIPTOR bsd_create_listen_socket (
+    const char *host, int port, int options) {
+  struct addrinfo hints, *result;
+    
+  memset(&hints, 0, sizeof(struct addrinfo));
+  hints.ai_flags = AI_PASSIVE;
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
 
-    hints.ai_flags = AI_PASSIVE;
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
+  char port_string[16];
+  sprintf(port_string, "%d", port);
+  if (getaddrinfo(host, port_string, &hints, &result)) return LIBUS_SOCKET_ERROR;
 
-    char port_string[16];
-    sprintf(port_string, "%d", port);
-
-    if (getaddrinfo(host, port_string, &hints, &result)) {
-        return LIBUS_SOCKET_ERROR;
+    
+  LIBUS_SOCKET_DESCRIPTOR listenFd = LIBUS_SOCKET_ERROR;
+  struct addrinfo *listenAddr;
+  for (struct addrinfo *a = result; a && listenFd == LIBUS_SOCKET_ERROR; 
+      a = a->ai_next) {
+    if (a->ai_family == AF_INET6) {
+      listenFd = bsd_create_socket(a->ai_family, a->ai_socktype, a->ai_protocol);
+      listenAddr = a;
     }
-
-    LIBUS_SOCKET_DESCRIPTOR listenFd = LIBUS_SOCKET_ERROR;
-    struct addrinfo *listenAddr;
-    for (struct addrinfo *a = result; a && listenFd == LIBUS_SOCKET_ERROR; a = a->ai_next) {
-        if (a->ai_family == AF_INET6) {
-            listenFd = bsd_create_socket(a->ai_family, a->ai_socktype, a->ai_protocol);
-            listenAddr = a;
-        }
+  }
+  for (struct addrinfo *a = result; a && listenFd == LIBUS_SOCKET_ERROR; 
+      a = a->ai_next) {
+    if (a->ai_family == AF_INET) {
+      listenFd = bsd_create_socket(a->ai_family, a->ai_socktype, a->ai_protocol);
+      listenAddr = a;
     }
-
-    for (struct addrinfo *a = result; a && listenFd == LIBUS_SOCKET_ERROR; a = a->ai_next) {
-        if (a->ai_family == AF_INET) {
-            listenFd = bsd_create_socket(a->ai_family, a->ai_socktype, a->ai_protocol);
-            listenAddr = a;
-        }
-    }
-
-    if (listenFd == LIBUS_SOCKET_ERROR) {
-        freeaddrinfo(result);
-        return LIBUS_SOCKET_ERROR;
-    }
+  }
+  if (listenFd == LIBUS_SOCKET_ERROR) {
+    freeaddrinfo(result);
+    return LIBUS_SOCKET_ERROR;
+  }
 
 #if defined(__linux) && defined(SO_REUSEPORT)
-    if (options & REUSE_PORT) {
-        int optval = 1;
-        setsockopt(listenFd, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
-    }
+  if (options & REUSE_PORT) {
+    int optval = 1;
+    setsockopt(listenFd, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
+  }
 #endif
 
-    int enabled = 1;
-    setsockopt(listenFd, SOL_SOCKET, SO_REUSEADDR, (SETSOCKOPT_PTR_TYPE) &enabled, sizeof(enabled));
+  int enabled = 1;
+  setsockopt(listenFd, SOL_SOCKET, SO_REUSEADDR, 
+      (SETSOCKOPT_PTR_TYPE) &enabled, sizeof(enabled));
 
 #ifdef IPV6_V6ONLY
-    int disabled = 0;
-    setsockopt(listenFd, IPPROTO_IPV6, IPV6_V6ONLY, (SETSOCKOPT_PTR_TYPE) &disabled, sizeof(disabled));
+  int disabled = 0;
+  setsockopt(listenFd, IPPROTO_IPV6, IPV6_V6ONLY, 
+      (SETSOCKOPT_PTR_TYPE) &disabled, sizeof(disabled));
 #endif
 
-    if (bind(listenFd, listenAddr->ai_addr, listenAddr->ai_addrlen) || listen(listenFd, 512)) {
-        bsd_close_socket(listenFd);
-        freeaddrinfo(result);
-        return LIBUS_SOCKET_ERROR;
-    }
-
+  if (bind(listenFd, listenAddr->ai_addr, listenAddr->ai_addrlen) || 
+      listen(listenFd, 512)) {
+    bsd_close_socket(listenFd);
     freeaddrinfo(result);
-    return listenFd;
+    return LIBUS_SOCKET_ERROR;
+  }
+
+  freeaddrinfo(result);
+  return listenFd;
 }
 
 static inline LIBUS_SOCKET_DESCRIPTOR bsd_create_connect_socket(const char *host, int port, int options) {

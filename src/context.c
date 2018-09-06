@@ -3,49 +3,51 @@
 #include <stdlib.h>
 
 // put this in loop.c?
-struct us_socket_context *us_create_socket_context(struct us_loop *loop, int context_ext_size) {
-    struct us_socket_context *context = malloc(sizeof(struct us_socket_context) + context_ext_size);
+struct us_socket_context *us_create_socket_context (struct us_loop *loop, 
+    int context_ext_size) {
+  struct us_socket_context *context = malloc(sizeof(struct us_socket_context) + 
+      context_ext_size);
 
-    // us_socket_context_init(loop)
-    context->loop = loop;
-    context->head = 0;
-    context->iterator = 0;
-    context->next = 0;
+  // us_socket_context_init(loop)
+  context->loop = loop;
+  context->head = 0;
+  context->iterator = 0;
+  context->next = 0;
 
-    us_internal_loop_link(loop, context);
+  us_internal_loop_link(loop, context);
 
-    return context;
+  return context;
 }
 
 void us_socket_context_free(struct us_socket_context *context) {
     free(context);
 }
 
-struct us_listen_socket *us_socket_context_listen(struct us_socket_context *context, const char *host, int port, int options, int socket_ext_size) {
+struct us_listen_socket *us_socket_context_listen (
+    struct us_socket_context *context, const char *host, int port, 
+    int options, int socket_ext_size) {
+  LIBUS_SOCKET_DESCRIPTOR listen_socket_fd = 
+    bsd_create_listen_socket(host, port, options);
+  if (listen_socket_fd == LIBUS_SOCKET_ERROR) return 0; 
+  
+  struct us_poll *p = us_create_poll(
+      context->loop, 0, sizeof(struct us_listen_socket));
+  us_poll_init(p, listen_socket_fd, POLL_TYPE_SEMI_SOCKET);
+  us_poll_start(p, context->loop, LIBUS_SOCKET_READABLE);
 
-    LIBUS_SOCKET_DESCRIPTOR listen_socket_fd = bsd_create_listen_socket(host, port, options);
+  struct us_listen_socket *ls = (struct us_listen_socket *) p;
 
-    if (listen_socket_fd == LIBUS_SOCKET_ERROR) {
-        return 0;
-    }
+  //us_internal_init_socket(&ls->s, context);
 
-    struct us_poll *p = us_create_poll(context->loop, 0, sizeof(struct us_listen_socket));
-    us_poll_init(p, listen_socket_fd, POLL_TYPE_SEMI_SOCKET);
-    us_poll_start(p, context->loop, LIBUS_SOCKET_READABLE);
+  // this is common, should be like us_internal_socket_init(context);
+  ls->s.context = context;
+  ls->s.timeout = 0;
+  ls->s.next = 0;
+  us_internal_socket_context_link(context, &ls->s);
 
-    struct us_listen_socket *ls = (struct us_listen_socket *) p;
+  ls->socket_ext_size = socket_ext_size;
 
-    //us_internal_init_socket(&ls->s, context);
-
-    // this is common, should be like us_internal_socket_init(context);
-    ls->s.context = context;
-    ls->s.timeout = 0;
-    ls->s.next = 0;
-    us_internal_socket_context_link(context, &ls->s);
-
-    ls->socket_ext_size = socket_ext_size;
-
-    return ls;
+  return ls;
 }
 
 void us_listen_socket_close(struct us_listen_socket *ls) {

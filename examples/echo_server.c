@@ -130,9 +130,11 @@ int main() {
 	ssl_options.cert_file_name = "/home/alexhultman/uWebSockets/misc/ssl/cert.pem";
 	ssl_options.passphrase = "1234";
 
-	struct us_socket_context *echo_context = us_create_ssl_socket_context(loop, sizeof(struct echo_context), ssl_options);
+	struct us_socket_context *echo_context = us_create_ssl_socket_context(loop, 
+      sizeof(struct echo_context), ssl_options);
 #else
-	struct us_socket_context *echo_context = us_create_socket_context(loop, sizeof(struct echo_context));
+	struct us_socket_context *echo_context = us_create_socket_context(loop, 
+      sizeof(struct echo_context));
 #endif
 
 	/* Registering event handlers */
@@ -144,7 +146,8 @@ int main() {
 	us_socket_context_on_end(echo_context, on_echo_socket_end);
 
 	/* Start accepting echo sockets */
-	struct us_listen_socket *listen_socket = us_socket_context_listen(echo_context, 0, 3000, 0, sizeof(struct echo_socket));
+	struct us_listen_socket *listen_socket = us_socket_context_listen(echo_context, 
+      0, 3000, 0, sizeof(struct echo_socket));
 
 	if (listen_socket) {
 		printf("Listening on port 3000...\n");
